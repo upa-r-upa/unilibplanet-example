@@ -49,8 +49,17 @@ namespace Scripts.Actions
             long prevCount = countState.Count;
             countState = countState.AddCount(_plainValue.Count);
             long nextCount = countState.Count;
-            Debug.Log($"click_action: PrevCount: {prevCount}, NextCount: {nextCount}");
-            return states.SetState(context.Signer, countState.Encode());
+
+            // Also update the scoreboard.
+            ScoreBoardState scoreBoardState =
+                states.GetState(ScoreBoardState.Address) is Bencodex.Types.Dictionary scoreBoardStateEncoded
+                    ? new ScoreBoardState(scoreBoardStateEncoded)
+                    : new ScoreBoardState();
+            scoreBoardState = scoreBoardState.UpdateScoreBoard(context.Signer);
+
+            return states
+                .SetState(ScoreBoardState.Address, scoreBoardState.Encode())
+                .SetState(context.Signer, countState.Encode());
         }
     }
 }

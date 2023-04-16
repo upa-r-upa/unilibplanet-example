@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using Libplanet;
 using Libplanet.Action;
 using Libplanet.Blocks;
 using Libplanet.Blockchain.Renderers;
@@ -47,6 +50,7 @@ namespace Scripts
             // Register listeners.
             _blockUpdatedEvent = new BlockUpdatedEvent();
             _blockUpdatedEvent.AddListener(UpdateBlockTexts);
+            _blockUpdatedEvent.AddListener(UpdateScoreBoardText);
             _totalCountUpdatedEvent = new TotalCountUpdatedEvent();
             _totalCountUpdatedEvent.AddListener(UpdateTotalCountText);
 
@@ -95,11 +99,9 @@ namespace Scripts
             // Initialize texts.
             BlockHashText.text = "Block Hash: 0000";
             BlockIndexText.text = "Block Index: 0";
-            ScoreBoardText.text = "Scoreboard";
 
             AddressText.text = $"My Address: {_agent.Address.ToHex().Substring(0, 4)}";
             Bencodex.Types.IValue initialState = _agent.GetState(_agent.Address);
-            Debug.Log($"init state is null: {initialState is null}");
             if (initialState is Bencodex.Types.Dictionary bdict)
             {
                 _totalCountUpdatedEvent.Invoke(new CountState(bdict));
@@ -111,6 +113,8 @@ namespace Scripts
 
             _timer.ResetTimer();
             TimerText.text = $"Timer: {_timer.Clock:F1}";
+
+            ScoreBoardText.text = "Scoreboard";
         }
 
         // Unity MonoBehaviour FixedUpdate().
@@ -125,7 +129,6 @@ namespace Scripts
             {
                 if (Click.Count > 0)
                 {
-                    // ActionBase to PolymorphicAction Casting is done automagically.
                     List<PolymorphicAction<ActionBase>> actions =
                         new List<PolymorphicAction<ActionBase>>()
                         {
@@ -138,7 +141,6 @@ namespace Scripts
                 _timer.ResetTimer();
             }
 
-            // Update timer text.
             TimerText.text = $"Timer: {_timer.Clock:F1}";
         }
 
@@ -153,6 +155,57 @@ namespace Scripts
         private void UpdateTotalCountText(CountState countState)
         {
             TotalCountText.text = $"Total Count: {countState.Count}";
+        }
+
+        // Update scoreboard text.
+        private void UpdateScoreBoardText(Block<PolymorphicAction<ActionBase>> tip)
+        {
+            // Check for the scoreboard state.
+            Bencodex.Types.IValue scoreBoardStateEncoded =
+                _agent.GetState(ScoreBoardState.Address, tip.Hash);
+            ScoreBoardState scoreBoardState =
+                scoreBoardStateEncoded is Bencodex.Types.Dictionary bdict
+                    ? new ScoreBoardState(bdict)
+                    : new ScoreBoardState();
+
+            Debug.LogError("UpdateScoreBoardText 실행");
+
+            // Look up and retrieve each score stored at each address.
+            Dictionary<Address, long> scores = new Dictionary<Address, long>();
+            foreach (Address account in scoreBoardState.Participants)
+            {
+                CountState countState =
+                    _agent.GetState(account, tip.Hash)
+                        is Bencodex.Types.Dictionary countStateEncoded
+                            ? new CountState(countStateEncoded)
+                            : throw new ArgumentException(
+                                $"Invalid state found for account {account}");
+                scores.Add(account, countState.Count);
+            }
+
+            Debug.LogError(scores.Count + "");
+
+            // Format output text.
+            if (scores.Count > 0)
+            {
+                string ToScoreText(Address address, long score)
+                {
+                    return $"Address: {address.ToHex().Substring(0, 4)}, Score: {score}";
+                }
+
+                ScoreBoardText.text = (
+                    "Scoreboard" +
+                    Environment.NewLine +
+                    string.Join(
+                        Environment.NewLine,
+                        scores.Select(kv => ToScoreText(kv.Key, kv.Value))));
+            }
+            else
+            {
+                Debug.LogError("scores.Count가 0보다 작습니다");
+
+                ScoreBoardText.text = "Scoreboard";
+            }
         }
     }
 }
