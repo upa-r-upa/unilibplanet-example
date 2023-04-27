@@ -20,6 +20,7 @@ namespace Scripts.States
         // changes in scores stored somewhere else do not necessarily affect the list
         // of participants below.
         public long Nonce { get; private set; }
+        public long SpaceEnterNonce { get; private set; }
 
         // The list of addresses that have changed its count at some point.
         public ImmutableList<Address> Participants { get; private set; }
@@ -28,12 +29,14 @@ namespace Scripts.States
             : base()
         {
             Nonce = 0L;
+            SpaceEnterNonce = 0L;
             Participants = ImmutableList<Address>.Empty;
         }
 
-        public ScoreBoardState(long nonce, ImmutableList<Address> participants)
+        public ScoreBoardState(long nonce, ImmutableList<Address> participants, long spaceEnterNonce)
         {
             Nonce = nonce;
+            SpaceEnterNonce = spaceEnterNonce;
             Participants = participants;
         }
 
@@ -44,11 +47,11 @@ namespace Scripts.States
         {
         }
 
-        public ScoreBoardState UpdateScoreBoard(Address account)
+        public ScoreBoardState UpdateScoreBoard(Address account, long nonce, long spaceEnterNonce)
         {
             return Participants.Contains(account)
-                ? new ScoreBoardState(Nonce + 1, Participants)
-                : new ScoreBoardState(Nonce + 1, Participants.Add(account));
+                ? new ScoreBoardState(nonce, Participants, spaceEnterNonce)
+                : new ScoreBoardState(nonce, Participants.Add(account), spaceEnterNonce);
         }
     }
 }

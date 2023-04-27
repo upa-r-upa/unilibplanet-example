@@ -7,18 +7,18 @@ using UnityEngine;
 
 namespace Scripts.Actions
 {
-    [ActionType("click_action")]
-    public class ClickAction : ActionBase
+    [ActionType("normal_action")]
+    public class NormalAction : ActionBase
     {
-        private ClickActionPlainValue _plainValue;
+        private ActionPlainValue _plainValue;
 
-        public ClickAction()
+        public NormalAction()
         {
         }
 
-        public ClickAction(long count)
+        public NormalAction(long count, long enterNonce)
         {
-            _plainValue = new ClickActionPlainValue(count);
+            _plainValue = new ActionPlainValue(count, enterNonce);
         }
 
         public override Bencodex.Types.IValue PlainValue => _plainValue.Encode();
@@ -27,7 +27,7 @@ namespace Scripts.Actions
         {
             if (plainValue is Bencodex.Types.Dictionary bdict)
             {
-                _plainValue = new ClickActionPlainValue(bdict);
+                _plainValue = new ActionPlainValue(bdict);
             }
             else
             {
@@ -43,19 +43,23 @@ namespace Scripts.Actions
             CountState countState =
                 states.GetState(context.Signer) is Bencodex.Types.Dictionary countStateEncoded
                     ? new CountState(countStateEncoded)
-                    : new CountState(0L);
+                    : new CountState(0L, 0L);
 
             // Mutates the loaded state, logs the result, and stores the resulting state.
-            long prevCount = countState.Count;
             countState = countState.AddCount(_plainValue.Count);
+            countState = countState.AddEnterCount(_plainValue.SpaceEnterCount);
             long nextCount = countState.Count;
+            long nextEnterCount = countState.SpaceEnterCount;
+
+            Debug.LogError($"nextCount: {nextCount}");
+            Debug.LogError($"nextEnterCount: {nextEnterCount}");
 
             // Also update the scoreboard.
             ScoreBoardState scoreBoardState =
                 states.GetState(ScoreBoardState.Address) is Bencodex.Types.Dictionary scoreBoardStateEncoded
                     ? new ScoreBoardState(scoreBoardStateEncoded)
                     : new ScoreBoardState();
-            scoreBoardState = scoreBoardState.UpdateScoreBoard(context.Signer);
+            scoreBoardState = scoreBoardState.UpdateScoreBoard(context.Signer, nextCount, nextEnterCount);
 
             return states
                 .SetState(ScoreBoardState.Address, scoreBoardState.Encode())

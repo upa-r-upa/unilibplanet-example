@@ -11,9 +11,20 @@ using UnityEngine.UI;
 using UnityEngine.Events;
 using Scripts.Actions;
 using Scripts.States;
-
 namespace Scripts
 {
+    public class ScoreData
+    {
+        public long Count { get; private set; }
+        public long SpaceEnterCount { get; private set; }
+
+        public ScoreData(long count, long enterCount)
+        {
+            Count = count;
+            SpaceEnterCount = enterCount;
+        }
+    }
+
     // Unity event handlers.
     public class BlockUpdatedEvent : UnityEvent<Block<PolymorphicAction<ActionBase>>>
     {
@@ -30,6 +41,7 @@ namespace Scripts
         public Text BlockIndexText;
         public Text AddressText;
         public Text TotalCountText;
+        public Text TotalEnterText;
         public Text TimerText;
         public Text ScoreBoardText;
         public Click Click;
@@ -39,6 +51,7 @@ namespace Scripts
         private IEnumerable<IRenderer<PolymorphicAction<ActionBase>>> _renderers;
         private Agent _agent;
         private Timer _timer;
+        private Enter enter;
 
         // Unity MonoBehaviour Awake().
         public void Awake()
@@ -91,6 +104,15 @@ namespace Scripts
 
             // Initialize a Timer.
             _timer = new Timer();
+            enter = new Enter();
+        }
+
+        public void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                enter.Add();
+            }
         }
 
         // Unity MonoBehaviour Start().
@@ -108,7 +130,7 @@ namespace Scripts
             }
             else
             {
-                _totalCountUpdatedEvent.Invoke(new CountState(0L));
+                _totalCountUpdatedEvent.Invoke(new CountState(0L, 0L));
             }
 
             _timer.ResetTimer();
@@ -127,17 +149,18 @@ namespace Scripts
             // Afterwards, reset the timer and the count.
             if (_timer.Clock <= 0)
             {
-                if (Click.Count > 0)
+                if (Click.Count > 0 || enter.Count > 0)
                 {
                     List<PolymorphicAction<ActionBase>> actions =
                         new List<PolymorphicAction<ActionBase>>()
                         {
-                            new ClickAction(Click.Count)
+                            new NormalAction(Click.Count, enter.Count)
                         };
                     _agent.MakeTransaction(actions);
                 }
 
                 Click.ResetCount();
+                enter.ResetCount();
                 _timer.ResetTimer();
             }
 
@@ -154,7 +177,10 @@ namespace Scripts
         // Update total count text.
         private void UpdateTotalCountText(CountState countState)
         {
+            Debug.LogError("countState: " + countState.Count + " / " + countState.SpaceEnterCount);
+
             TotalCountText.text = $"Total Count: {countState.Count}";
+            TotalEnterText.text = $"Total Space Enter: {countState.SpaceEnterCount}";
         }
 
         // Update scoreboard text.
@@ -168,10 +194,8 @@ namespace Scripts
                     ? new ScoreBoardState(bdict)
                     : new ScoreBoardState();
 
-            Debug.LogError("UpdateScoreBoardText 실행");
-
             // Look up and retrieve each score stored at each address.
-            Dictionary<Address, long> scores = new Dictionary<Address, long>();
+            Dictionary<Address, ScoreData> scores = new Dictionary<Address, ScoreData>();
             foreach (Address account in scoreBoardState.Participants)
             {
                 CountState countState =
@@ -180,17 +204,15 @@ namespace Scripts
                             ? new CountState(countStateEncoded)
                             : throw new ArgumentException(
                                 $"Invalid state found for account {account}");
-                scores.Add(account, countState.Count);
+                scores.Add(account, new ScoreData(countState.Count, countState.SpaceEnterCount));
             }
-
-            Debug.LogError(scores.Count + "");
 
             // Format output text.
             if (scores.Count > 0)
             {
-                string ToScoreText(Address address, long score)
+                string ToScoreText(Address address, long score, long enterScore)
                 {
-                    return $"Address: {address.ToHex().Substring(0, 4)}, Score: {score}";
+                    return $"Address: {address.ToHex().Substring(0, 4)}, CountScore: {score}, EnterScore: {enterScore}";
                 }
 
                 ScoreBoardText.text = (
@@ -198,7 +220,7 @@ namespace Scripts
                     Environment.NewLine +
                     string.Join(
                         Environment.NewLine,
-                        scores.Select(kv => ToScoreText(kv.Key, kv.Value))));
+                        scores.Select(kv => ToScoreText(kv.Key, kv.Value.Count, kv.Value.SpaceEnterCount))));
             }
             else
             {
